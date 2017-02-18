@@ -42,32 +42,92 @@ def load_pattern():
 def dump_putty_log():
     out = False
     while not out:
-        with open('action.log', 'rb') as fp:
-            raw_data = fp.read().split(b'\n')
+        with open('putty.log', 'rb') as fp:
+            try:
+                raw_data = dump_putty_log.preprocess(fp.read().split(b'\n'))[dump_putty_log.pointer:]
+            except:
+                continue
             data = []
-            for x in dump_putty_log.preprocess(raw_data):
+            for x in raw_data:
                 try:
                     data.append(int(x.strip()))
                 except:
                     continue
-        new_lines = len(data) - dump_putty_log.pointer
-        if new_lines > 0:
+        if len(data) > 0:
             out = True
-            dump_putty_log.pointer = len(data)
-        time.sleep(0.5)
-    return data, new_lines
+            dump_putty_log.pointer += len(data)
+        time.sleep(1)
+    return data
 
 dump_putty_log.pointer = 0
 dump_putty_log.preprocess = lambda x: x[5:]
 
+def is_falling(query_pattern):
+    if min(query_pattern) < -200:
+        if min(query_pattern[-10:]) > -200 and max(query_pattern[-10:]) < 200:
+            return True
+    return False
 def main():
     patterns = load_pattern()
     state = 'startup'
+    pre_data = []
+    pre_decision = 'idle'
+    count = 0
     while(True):
-        data, new_ins_count = dump_putty_log()
-        print(data, new_ins_count)
+        data = dump_putty_log()
+        #print(data[-new_ins_count:])
+        print(len(data))
+        if len(data) > 1000:
+            continue
+        draw_data = pre_data + data
+        decision = set([voting(draw_data[i: i+50], patterns) for i in range(0, len(draw_data) - 50, 10)])
+        if pre_decision == 'fallen':
+            decision = 'fallen'
+        elif 'angry' in decision:
+            decision = 'angry'
+            if pre_decision == 'angry':
+                count += 1
+            else:
+                count = 0
+        elif 'walk' in decision:
+            decision = 'walk'
+            if pre_decision == 'walk':
+                count += 1
+            else:
+                count = 0
+        elif 'stay' in decision:
+            if pre_decision == 'walk':
+                if count <= 2:
+                    decision = 'walk'
+                    count += 1
+                else:
+                    count = 0
+                    decision = 'stay'
+            elif pre_decision == 'stay':
+                if count >= 50:
+                    decision = 'idle'
+                    count = 0
+                else:
+                    decision = 'stay'
+                    count += 1
+            elif pre_decision == 'idle':
+                decision = 'idle'
+            else:
+                decision = 'stay'
+                count = 0
+        if is_falling(draw_data) and pre_decision != 'idle':
+            decision = 'fallen'
+        pre_data = data
+        pre_decision = decision
+        print(pre_decision, decision)
 
-        r = requests.get('http://linux7.csie.ntu.edu.tw:8000', params={'acc_x': data[new_ins_count:]})
+        send_decision = decision
+        if send_decision == 'walk':
+            send_decision = 'walking'
+        if send_decision == 'stay':
+            send_decision = 'staying'
+
+        r = requests.get('http://linux7.csie.ntu.edu.tw:8000', params={'acc_x': data, 'action': send_decision})
 
 if __name__ == '__main__':
     main()
