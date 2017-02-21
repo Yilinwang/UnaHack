@@ -2,6 +2,7 @@ from collections import Counter
 import time
 import requests
 def dtw(my_pattern, template_pattern, start=0):
+    # fix length of signal (length: 50)
     d = [[2147483647 for _ in range(50)] for __ in range(2)]
     cur = 0
     d[1][0] = abs(my_pattern[start] - template_pattern[0])
@@ -18,6 +19,7 @@ def dtw(my_pattern, template_pattern, start=0):
     return d[(cur+1)%2][49]
 
 def voting(query_pattern, model_patterns):
+    # simple KNN decision
     score = []
     for model, m_patterns in model_patterns.items():
         for m_p in m_patterns:
@@ -30,6 +32,7 @@ def voting(query_pattern, model_patterns):
 
 
 def load_pattern():
+    # load training data
     with open('patterns.csv', 'r') as fp:
         fp.readline()
         tmp = list(zip(*[[int(x) for x in line.strip().split(',')] for line in fp]))
@@ -37,9 +40,11 @@ def load_pattern():
     patterns['angry'] = tmp[:10]
     patterns['walk'] = tmp[10:20]
     patterns['stay'] = tmp[20:30]
+    patterns['pointing'] = tmp[30:40]
     return patterns
 
 def dump_putty_log():
+    # get test data from sensor
     out = False
     while not out:
         with open('putty.log', 'rb') as fp:
@@ -63,6 +68,8 @@ dump_putty_log.pointer = 0
 dump_putty_log.preprocess = lambda x: x[5:]
 
 def is_falling(query_pattern):
+    # rule base decision
+    # no tolerance for false positive error
     if min(query_pattern) < -200:
         if min(query_pattern[-10:]) > -200 and max(query_pattern[-10:]) < 200:
             return True
@@ -80,9 +87,22 @@ def main():
         if len(data) > 1000:
             continue
         draw_data = pre_data + data
+
+        # we have continuous signal
+        # so we make the signal into overlap patterns
         decision = set([voting(draw_data[i: i+50], patterns) for i in range(0, len(draw_data) - 50, 10)])
+
+        # Handcraft markov model (MM), which is naive. Used for demo only.
+        # In real world, this should be a well-trained HMM.
+        # decision contains all the possible states ( or all the possibility of each states )
         if pre_decision == 'fallen':
             decision = 'fallen'
+        elif 'pointing' in decision:
+            decision = 'pointing'
+            if pre_decision == 'pointing':
+                count += 1
+            else:
+                count = 0
         elif 'angry' in decision:
             decision = 'angry'
             if pre_decision == 'angry':
@@ -118,16 +138,18 @@ def main():
         if is_falling(draw_data) and pre_decision != 'idle':
             decision = 'fallen'
         pre_data = data
-        pre_decision = decision
+        if type(decision) is str:
+            pre_decision = decision
         print(pre_decision, decision)
 
         send_decision = decision
+        # fix some syntax to send to server
         if send_decision == 'walk':
             send_decision = 'walking'
         if send_decision == 'stay':
             send_decision = 'staying'
 
-        r = requests.get('http://linux7.csie.ntu.edu.tw:8000', params={'acc_x': data, 'action': send_decision})
+        r = requests.get('http://oasis1.csie.ntu.edu.tw:8000', params={'acc_x': data, 'action': send_decision})
 
 if __name__ == '__main__':
     main()

@@ -77,6 +77,7 @@
 //#define USE_MAG_ACC //LSM303AGR MEMS 3D magnetometer + MEMS 3D accelerometer 
 //#define USE_ENVI_SENSORS  //LPS22HB MEMS pressure sensor, absolute digital output barometer and HTS221 Capacitive digital relative humidity and temperature
 
+/* Our global variable declaration */
 float mytemperature;
 float mypressure;
 float myhumidity;
@@ -218,6 +219,8 @@ void exitGpioLowPower(void)
 * @param  None
 * @retval None
 */
+
+/* dtw algorithm */
 int mymin(int a, int b) { return a < b? a: b; }
 
 int myabs(int a) { return a > 0? a: -a; }
@@ -239,6 +242,7 @@ int dtw(int a[], int b[], int s) {
     }
     return d[!cur][49];
 }
+
 void main(void)
 {  
   /* Instance some variables where the SigFox data of the board are stored */
@@ -250,6 +254,8 @@ void main(void)
   uint32_t cust_counter=0;
   uint8_t customer_data[12]={0};
   uint8_t customer_resp[8];
+
+  /* Our local variable declaration*/
 	int pattern[50][50] = {{0}};
 	int walk_pattern[50] = {1464,1454,1515,1512,1384,1257,1101,997,906,807,750,706,686,704,705,719,708,689,652,652,668,693,740,698,660,665,653,711,749,795,775,852,903,983,983,1013,1028,1001,977,1712,-79,-628,1666,932,1061,1022,1039,1009,984,1011};
   int my_pattern[50] = {0};
@@ -379,28 +385,16 @@ void main(void)
 	count %= 50;
 	PRINTF("dtm: %d\n\r", dtw(my_pattern, walk_pattern, count));
   while(1)
-  {  
-    /* go in low power with the STM32 waiting for an external interrupt */
-		
-		//for(int i = 0; i < 10000; ++i);
-    Accelero_Sensor_Handler( LSM6DSL_X_0_handle );
+  {
+        Accelero_Sensor_Handler( LSM6DSL_X_0_handle );
 		my_pattern[count++] = myacceleration.AXIS_X;
 		count %= 50;
 		int sim_walk = dtw(my_pattern, walk_pattern, count);
-		PRINTF("dtw: %d", sim_walk);
-		PRINTF("\n\r");
-		
+		//PRINTF("dtw: %d", sim_walk);  PRINTF("\n\r");
 		for(int i = 0; i < 10000; ++i);
-			//int x = myacceleration.AXIS_X;
-		  //int to_send = (int)sqrt((double)(x > 0? x: -x)) * (x > 0? 1: -1);
-			
-		//PRINTF("%d, %d, %d\n", myacceleration.AXIS_X, myacceleration.AXIS_Y, myacceleration.AXIS_Z);
-		
-		//PRINTF("\r\nSending message...\n\r");
-			//set to 1 if you want to recieve downlink respond
-		//ST_SIGFOX_API_send_frame(customer_data,12,customer_resp,0,dwnlink_req);
+		PRINTF("%d\n", myacceleration.AXIS_X);
+		ST_SIGFOX_API_send_frame(customer_data,12,customer_resp,0,dwnlink_req);
 		//PRINTF("\r\nMessage sent.\n\r");
-		
 #ifdef FOR_FCC
       /* Only for RCZ2 and 4. Since the SigFox base stations are able to receive only on the default ch
       (1 for RCZ2 and 63 for RCZ4), we send an API reset in order to be sure that all the packets will be 

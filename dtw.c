@@ -29,6 +29,7 @@ int dtw(int a[], int b[]) {
             d[i%5][j] = myabs(a[i] - b[j]) + min;
         }
         /*
+         * debug
         for(int x = 0; x < 5; x++) {
             for(int y = 0; y < 50; y++) {
                 printf("%d ", d[x][y]);
@@ -40,6 +41,7 @@ int dtw(int a[], int b[]) {
     return d[4][49];
 }
 
+// test
 int main() {
     FILE* fp = fopen("pattern.csv", "r");
     int a[8][50];
